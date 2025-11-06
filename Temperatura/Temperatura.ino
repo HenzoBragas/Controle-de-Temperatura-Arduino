@@ -11,13 +11,11 @@ LiquidCrystal_I2C lcd(0x27, 20, 4);  // Use o seu endereço I2C
 DHT_Unified dht(DHTPIN, DHTTYPE);  // Inicializando o sensor DHT11
 
 // Declaração de pinos
-const int sensorPin = A0;
-const int led = 13;
 const int bot1 = 12;
 const int bot2 = 11;
 const int bot3 = 10;
-const int peltier = 9;
-const int vent = 8;
+const int peltier = 7;
+const int vent = 6;
 
 // Declaração de variaveis
 int estadobot1 = 0;
@@ -29,29 +27,17 @@ float temp_lida;
 float soma = 0.0;
 float media;
 int contador = 1;
-
-/*Parâmetros do sensor
-----Tensão de trabalho----
-const float tensaoRef = 5.0;       
-
-const float resolucaoADC = 1023.0;   
-
-//Refêrencia ao sensor temperatura TMP36
-const float valorReferencia = 0.5;
-
-//Refêrencia para graus °C
-const float celsiusReferencia = 100.0; */
+int flag = 0;
 
 //Timer de leitura
 unsigned long tempoAnterior = 0;  // Armazena o último momento em que a tarefa foi executada
-const long intervalo = 5000;      // O intervalo desejado em milissegundos (2 segundos)
+const long intervalo = 500;       // O intervalo desejado em milissegundos (2 segundos)
 
 void setup() {
-  pinMode(sensorPin, INPUT);
+  desligarSistema();
   pinMode(bot1, INPUT);
   pinMode(bot2, INPUT);
   pinMode(bot3, INPUT);
-  pinMode(led, OUTPUT);
   pinMode(peltier, OUTPUT);
   pinMode(vent, OUTPUT);
   Serial.begin(9600);
@@ -65,15 +51,14 @@ void setup() {
 }
 
 void loop() {
-  /*Chamada da função
-  float temp = temperatura();*/
   sensors_event_t event;  // inicializa o evento da Temperatura
 
   Menu_lcd();
 
-  ///// MODO AUTOMÁTICO /////
-  digitalWrite(led, LOW);
+  int flag = 0;
 
+
+  ///// MODO AUTOMÁTICO /////
   while (estadobot2 == 1) {
 
     //Inicia o timer
@@ -88,22 +73,39 @@ void loop() {
       lcd.print("Temp:");
       lcd.print(temp);
       lcd.print(" C ");
+      lcd.setCursor(1, 1);
+      lcd.print("Sistema: OFF");
+      //condição
 
       //condição
       if (temp > 30) {
-        controle(true);
+        ligarSistema();
         Serial.print("Temperatura Alta ");
         Serial.print(temp);
         Serial.println("C   ");
         lcd.setCursor(1, 1);
         lcd.print("Sistema: ON  ");
-      } else {
-        controle(false);
+        flag = 1;
+      }
+      if (temp < 30 && flag == 1) {
+        ligarSistema();
+        Serial.print("Temperatura Alta ");
+        Serial.print(temp);
+        Serial.println("C   ");
+        lcd.setCursor(1, 1);
+        lcd.print("Sistema: ON  ");
+        flag = 1;
+      }
+
+      if (temp < 25) {
+        desligarSistema();
         Serial.print("Temperatura: ");
         Serial.print(temp);
         Serial.println("C   ");
         lcd.setCursor(1, 1);
         lcd.print("Sistema: OFF");
+        flag = 0;
+        
       }
       tempoAnterior = tempoAtual;
     }
@@ -131,16 +133,35 @@ void loop() {
       tempoAnterior = tempoAtual;
       lcd.setCursor(1, 1);
       lcd.print("Aperte bot2");
-      controle(false);
+      desligarSistema();
     }
     if (digitalRead(bot2) == 0) {
       estadobot2 = !estadobot2;
       delay(200);
     }
+    if (digitalRead(bot1) == 0) {
+      estadobot1 = !estadobot1;
+      delay(200);
+    }
+
     while (estadobot2 == 1) {
-      controle(true);
+
+    unsigned long tempoAtual = millis();  // Obtém o tempo atual em milissegundos
+    // Verifica se já passou o intervalo de tempo desejado
+    if ((tempoAtual - tempoAnterior) >= intervalo) {
+      //Chamada da função
+
+      float temp = temperatura();
+
+      lcd.setCursor(1, 0);
+      lcd.print("Temp:");
+      lcd.print(temp);
+      lcd.print(" C  ");
+
+      ligarSistema();
       lcd.setCursor(1, 1);
       lcd.print("Sistema: ON  ");
+    }
       if (digitalRead(bot2) == 0) {
         estadobot2 = !estadobot2;
         delay(200);
@@ -206,6 +227,7 @@ void Inicia_lcd() {
 
 //Menu do Display
 void Menu_lcd() {
+  desligarSistema();
   lcd.setCursor(0, 0);
   lcd.print("1:Manual            ");
   lcd.setCursor(0, 1);
@@ -239,18 +261,18 @@ float temperatura() {
 
   if (isnan(event.temperature)) {
     Serial.println("Erro na leitura da Temperatura!");
-    return 0;  // Retorna 0 em caso de erro
+    return 0;  // Retorna 0 em caso de erro1
   } else {
     return event.temperature;
   }
 }
 
-void controle(bool ligar) {
-  if (ligar) {
-    digitalWrite(vent, HIGH);
-    digitalWrite(peltier, HIGH);
-  } else {
-    digitalWrite(vent, LOW);
-    digitalWrite(peltier, LOW);
-  }
+void desligarSistema() {
+  digitalWrite(vent, HIGH);
+  digitalWrite(peltier, HIGH);
+}
+
+void ligarSistema() {
+  digitalWrite(vent, LOW);
+  digitalWrite(peltier, LOW);
 }
